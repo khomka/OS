@@ -92,7 +92,7 @@ int _tmain(int argc, char* argv[])
 	vector<thread> threads;
 	for (const auto& disk : disks)
 	{
-		threads.push_back(thread(GetFiles, disks.back(), reg, true));
+		threads.push_back(thread(GetFiles, disk, reg, true));
 	}
 	for (int i = 0; i < threads.size(); i++) {
 		threads[i].join();

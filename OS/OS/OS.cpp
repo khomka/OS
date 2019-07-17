@@ -29,7 +29,7 @@ list<string> GetDisks()
 			if (uDriveMask & 1)
 			{
 				UINT dtype = GetDriveType(szDrive);
-				if (dtype == DRIVE_REMOVABLE || dtype == DRIVE_FIXED || dtype == DRIVE_REMOTE) //выводит только нормальые диски (видимые)
+				if (dtype == DRIVE_REMOVABLE || dtype == DRIVE_FIXED || dtype == DRIVE_REMOTE)
 				{
 					cout << szDrive;
 					cout << " ";
@@ -92,7 +92,6 @@ int _tmain(int argc, char* argv[])
 	vector<thread> threads;
 	for (const auto& disk : disks)
 	{
-		cout << disk << endl;
 		threads.push_back(thread(GetFiles, disks.back(), reg, true));
 	}
 	for (int i = 0; i < threads.size(); i++) {

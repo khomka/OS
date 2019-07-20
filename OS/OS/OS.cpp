@@ -10,7 +10,13 @@
 
 using namespace std;
 
-list<string> fileList;
+struct Parameter {
+	string path;
+	regex reg;
+};
+
+HANDLE mut = CreateMutex(NULL, FALSE, "fileList");
+vector<string> fileList;
 
 list<string> GetDisks()
 {
@@ -50,7 +56,17 @@ void AppendFile(const string& directory, const string& fileName, const regex& re
 		return;
 	}
 
-	fileList.push_back(directory + fileName);
+	DWORD result;
+	result = WaitForSingleObject(mut, INFINITE);
+	if (result == WAIT_OBJECT_0)
+	{
+		fileList.push_back(directory + fileName + "\r\n");
+		ReleaseMutex(mut);
+	}
+	else
+	{
+		cout << "Mutex failed!" << endl;
+	}
 }
 
 void GetFiles(string directory, const regex & reg, bool recursively = true)
@@ -83,33 +99,55 @@ void GetFiles(string directory, const regex & reg, bool recursively = true)
 	FindClose(hFind);
 }
 
+DWORD WINAPI GetFilesAsync(LPVOID lpParam)
+{
+	Parameter* parameter = (Parameter*)lpParam;
+	GetFiles(parameter->path, parameter->reg);
+
+	return 0;
+}
+
 int _tmain(int argc, char* argv[])
 {
 	regex reg(".*(xls|docx|xlsx)");
 
 	list<string> disks = GetDisks();
 
-	vector<thread> threads;
-	for (const auto& disk : disks)
+	vector<HANDLE> threads;
+	for (int i = 0; i < disks.size(); i++)
 	{
-		threads.push_back(thread(GetFiles, disk, reg, true));
-	}
-	for (int i = 0; i < threads.size(); i++) {
-		threads[i].join();
+		Parameter* data = new Parameter;
+		data->path = disks.back();
+		data->reg = reg;
+
+		HANDLE handle = CreateThread(NULL, 0, GetFilesAsync, data, 0, NULL);
+		threads.push_back(handle);
 	}
 
-	ofstream myfile("logs.txt");
-	if (myfile.is_open())
-	{
-		for (list<string>::iterator it = fileList.begin(); it != fileList.end(); ++it)
-		{
-			cout << (*it) << endl;
-			myfile << (*it) << endl;
-		}
-		myfile.close();
+	WaitForMultipleObjects(threads.size(), threads.data(), TRUE, INFINITE);
+
+	for (int i = 0; i < threads.size(); i++) {
+		CloseHandle(threads[i]);
 	}
-	else cout << "Unable to open file";
+	CloseHandle(mut);
+
+
+	HANDLE logFile = CreateFile("logs.txt", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+	if (logFile != INVALID_HANDLE_VALUE)
+	{
+		DWORD bytesWritten;
+
+		for (int i = 0; i < fileList.size(); i++)
+		{
+			cout << fileList[i].c_str();
+			WriteFile(logFile, fileList[i].c_str(), fileList[i].length(), &bytesWritten, NULL);
+		}
+		CloseHandle(logFile);
+	}
+	else
+	{
+		cout << "Error write logs!" << endl;
+	}
 
 	return 0;
 }
-
